@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 )
 
@@ -15,6 +16,7 @@ type Todo struct {
 // TodoStore stores Todos.
 type TodoStore interface {
 	GetTodos() []Todo
+	AddTodo(todo Todo)
 }
 
 // TodoServer is an HTTP interface for Todos.
@@ -40,6 +42,17 @@ func NewTodoServer(store TodoStore) *TodoServer {
 }
 
 func (t *TodoServer) todosHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("content-type", jsonContentType)
-	json.NewEncoder(w).Encode(t.store.GetTodos())
+	switch r.Method {
+	case http.MethodPost:
+		var todo Todo
+		err := json.NewDecoder(r.Body).Decode(&todo)
+		if err != nil {
+			log.Fatalf("Unable to parse request body %q, '%v'", r.Body, err)
+		}
+		t.store.AddTodo(todo)
+		w.WriteHeader(http.StatusAccepted)
+	case http.MethodGet:
+		w.Header().Set("content-type", jsonContentType)
+		json.NewEncoder(w).Encode(t.store.GetTodos())
+	}
 }

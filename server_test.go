@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -17,6 +19,10 @@ func (s *StubTodoStore) GetTodos() []Todo {
 	return s.todos
 }
 
+func (s *StubTodoStore) AddTodo(todo Todo) {
+	s.todos = append(s.todos, todo)
+}
+
 func TestGetTodos(t *testing.T) {
 	t.Run("it returns the todos as JSON", func(t *testing.T) {
 		wantedTodos := []Todo{
@@ -28,7 +34,7 @@ func TestGetTodos(t *testing.T) {
 		store := StubTodoStore{wantedTodos}
 		server := NewTodoServer(&store)
 
-		request, _ := http.NewRequest(http.MethodGet, "/todos", nil)
+		request := newGetTodosRequest()
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -39,6 +45,20 @@ func TestGetTodos(t *testing.T) {
 		assertContentType(t, response, jsonContentType)
 		assertTodos(t, got, wantedTodos)
 	})
+}
+
+func newGetTodosRequest() *http.Request {
+	req, _ := http.NewRequest(http.MethodGet, "/todos", nil)
+	return req
+}
+
+func newPostTodoRequest(todo Todo) *http.Request {
+	json, err := json.Marshal(todo)
+	if err != nil {
+		log.Fatalf("could not marshal Todo into JSON. '%v'", err)
+	}
+	req, _ := http.NewRequest(http.MethodPost, "/todos", bytes.NewReader(json))
+	return req
 }
 
 func assertStatus(t *testing.T, got, want int) {
