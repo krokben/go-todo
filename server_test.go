@@ -24,16 +24,15 @@ func (s *StubTodoStore) AddTodo(todo Todo) {
 }
 
 func TestGetTodos(t *testing.T) {
+	todos := []Todo{
+		{"1", "Example 1", false},
+		{"2", "Example 2", false},
+		{"3", "Example 3", false},
+	}
+	store := StubTodoStore{todos}
+	server := NewTodoServer(&store)
+
 	t.Run("it returns the todos as JSON", func(t *testing.T) {
-		wantedTodos := []Todo{
-			{"1", "Example 1", false},
-			{"2", "Example 2", false},
-			{"3", "Example 3", false},
-		}
-
-		store := StubTodoStore{wantedTodos}
-		server := NewTodoServer(&store)
-
 		request := newGetTodosRequest()
 		response := httptest.NewRecorder()
 
@@ -43,7 +42,39 @@ func TestGetTodos(t *testing.T) {
 
 		assertStatus(t, response.Code, http.StatusOK)
 		assertContentType(t, response, jsonContentType)
-		assertTodos(t, got, wantedTodos)
+		assertTodos(t, got, todos)
+	})
+
+	t.Run("it returns 400 if ID is missing", func(t *testing.T) {
+		request, _ := http.NewRequest(http.MethodGet, "/todos/", nil)
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusBadRequest)
+	})
+
+	t.Run("it returns 404 on wrong ID", func(t *testing.T) {
+		request, _ := http.NewRequest(http.MethodGet, "/todos/4", nil)
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusNotFound)
+	})
+
+	t.Run("it returns a todo as JSON", func(t *testing.T) {
+		wantedTodo := Todo{"1", "Example 1", false}
+
+		request, _ := http.NewRequest(http.MethodGet, "/todos/1", nil)
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		got := getTodoFromResponse(t, response.Body)
+		assertStatus(t, response.Code, http.StatusOK)
+		assertContentType(t, response, jsonContentType)
+		assertTodo(t, got, wantedTodo)
 	})
 }
 
@@ -75,6 +106,17 @@ func assertContentType(t *testing.T, response *httptest.ResponseRecorder, want s
 	}
 }
 
+func getTodoFromResponse(t *testing.T, body io.Reader) (todo Todo) {
+	t.Helper()
+	err := json.NewDecoder(body).Decode(&todo)
+
+	if err != nil {
+		t.Fatalf("Unable to parse response from server %q into Todo, '%v'", body, err)
+	}
+
+	return
+}
+
 func getTodosFromResponse(t *testing.T, body io.Reader) (todos []Todo) {
 	t.Helper()
 	err := json.NewDecoder(body).Decode(&todos)
@@ -87,6 +129,13 @@ func getTodosFromResponse(t *testing.T, body io.Reader) (todos []Todo) {
 }
 
 func assertTodos(t *testing.T, got, want []Todo) {
+	t.Helper()
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v want %v", got, want)
+	}
+}
+
+func assertTodo(t *testing.T, got, want Todo) {
 	t.Helper()
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v want %v", got, want)

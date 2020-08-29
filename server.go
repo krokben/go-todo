@@ -35,6 +35,7 @@ func NewTodoServer(store TodoStore) *TodoServer {
 
 	router := http.NewServeMux()
 	router.Handle("/todos", http.HandlerFunc(t.todosHandler))
+	router.Handle("/todos/", http.HandlerFunc(t.todoHandler))
 
 	t.Handler = router
 
@@ -55,4 +56,30 @@ func (t *TodoServer) todosHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("content-type", jsonContentType)
 		json.NewEncoder(w).Encode(t.store.GetTodos())
 	}
+}
+
+func (t *TodoServer) todoHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Path[len("/todos/"):]
+
+	if id != "" {
+		var todo Todo
+		todos := t.store.GetTodos()
+
+		for i := 0; i < len(todos); i++ {
+			if todos[i].ID == id {
+				todo = todos[i]
+			}
+		}
+
+		if todo.ID != id {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("content-type", jsonContentType)
+		json.NewEncoder(w).Encode(todo)
+		return
+	}
+
+	w.WriteHeader(http.StatusBadRequest)
 }
